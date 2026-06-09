@@ -1,0 +1,23 @@
+.codex-usage-track {
+  width: 236px;
+  min-height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background-color: #1b5e20;
+}
+
+.codex-usage-fill {
+  height: 6px;
+  border-radius: 3px;
+  background-color: #33d17a;
+}
+
+.codex-usage-reset {
+  font-size: 0.85em;
+  color: #888;
+  margin-top: 2px;
+}
+
+.codex-usage-warning {
+  color: #e01b24;
+}

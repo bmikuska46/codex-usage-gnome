@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=com.github.bmikuska.CodexUsage
+Exec=%h/.local/bin/codex-usage

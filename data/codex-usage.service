@@ -1,0 +1,12 @@
+[Unit]
+Description=Codex usage monitor D-Bus service
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=com.github.bmikuska.CodexUsage
+ExecStart=%h/.local/bin/codex-usage
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

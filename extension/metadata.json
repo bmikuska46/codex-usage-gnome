@@ -1,0 +1,8 @@
+{
+  "uuid": "codex-usage@bmikuska.github.com",
+  "name": "Codex GNOME Usage",
+  "description": "Shows Codex plan usage (5h and weekly limits) in the top bar.",
+  "shell-version": ["50"],
+  "version": 1,
+  "url": "https://github.com/bmikuska46/codex-usage-gnome"
+}

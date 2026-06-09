@@ -1,0 +1,22 @@
+[project]
+name = "codex-usage"
+version = "1.0.0"
+description = "GNOME top bar indicator for Codex plan usage"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PyGObject>=3.42",
+    "httpx>=0.27",
+    "dbus-python>=1.3",
+]
+
+[project.scripts]
+codex-usage = "codex_usage.__main__:main"
+codex-usage-login = "codex_usage.auth:login_cli"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
