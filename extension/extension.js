@@ -15,6 +15,7 @@ const DBUS_NAME = 'com.github.bmikuska.CodexUsage';
 const DBUS_PATH = '/com/github/bmikuska/CodexUsage';
 const DBUS_IFACE = 'com.github.bmikuska.CodexUsage';
 const REFRESH_MS = 30_000;
+const COUNTDOWN_THRESHOLD_SEC = 300;
 const USAGE_BAR_WIDTH = 236;
 const USAGE_COLORS = {
     green: {fill: '#33d17a', track: '#1b5e20'},
@@ -31,6 +32,43 @@ function usageColorForPercent(percent) {
     if (percent >= 10)
         return USAGE_COLORS.orange;
     return USAGE_COLORS.red;
+}
+
+function secondsUntilReset(resetAt) {
+    if (!resetAt)
+        return null;
+    return Math.max(0, resetAt - Math.floor(Date.now() / 1000));
+}
+
+function formatResetFromSeconds(remaining) {
+    if (remaining <= 0)
+        return 'now';
+    let hours = Math.floor(remaining / 3600);
+    const remainder = remaining % 3600;
+    const minutes = Math.floor(remainder / 60);
+    const seconds = remainder % 60;
+    if (hours >= 24) {
+        const days = Math.floor(hours / 24);
+        hours = hours % 24;
+        return `in ${days}d ${hours}h`;
+    }
+    if (hours > 0)
+        return `in ${hours}h ${minutes}m`;
+    if (remaining < COUNTDOWN_THRESHOLD_SEC) {
+        if (minutes > 0)
+            return `in ${minutes} min ${seconds} secs`;
+        return `in ${seconds} secs`;
+    }
+    return `in ${minutes}m`;
+}
+
+function formatResetLabel(resetAt, fallbackLabel) {
+    const remaining = secondsUntilReset(resetAt);
+    if (remaining === null)
+        return fallbackLabel || '—';
+    if (remaining < COUNTDOWN_THRESHOLD_SEC)
+        return formatResetFromSeconds(remaining);
+    return fallbackLabel || formatResetFromSeconds(remaining);
 }
 
 const UsageBarMenuItem = GObject.registerClass(
@@ -76,6 +114,14 @@ class UsageBarMenuItem extends PopupMenu.PopupBaseMenuItem {
         this._track.set_style(`background-color: ${color.track};`);
         this._fill.set_width(fillWidth);
         this._fill.set_style(`background-color: ${color.fill};`);
+        this._setResetText(resetLabel);
+    }
+
+    setResetLabel(resetLabel) {
+        this._setResetText(resetLabel);
+    }
+
+    _setResetText(resetLabel) {
         this._reset.text = `Resets ${resetLabel || '—'}`;
     }
 });
@@ -128,6 +174,8 @@ class CodexUsageIndicator extends PanelMenu.Button {
         this._setAuthenticated(false);
 
         this._proxy = null;
+        this._usageWindows = null;
+        this._countdownTimeoutId = null;
         this._connectDbus();
         this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, REFRESH_MS, () => {
             this._refresh();
@@ -220,9 +268,17 @@ class CodexUsageIndicator extends PanelMenu.Button {
         const primaryLeft = primary.remaining_percent ?? '—';
         const secondaryLeft = secondary.remaining_percent ?? '—';
 
+        this._usageWindows = {primary, secondary};
         this._label.text = `${primaryLeft}%`;
-        this._primaryBar.setValues(primaryLeft, primary.reset_label);
-        this._secondaryBar.setValues(secondaryLeft, secondary.reset_label);
+        this._primaryBar.setValues(
+            primaryLeft,
+            formatResetLabel(primary.reset_at, primary.reset_label)
+        );
+        this._secondaryBar.setValues(
+            secondaryLeft,
+            formatResetLabel(secondary.reset_at, secondary.reset_label)
+        );
+        this._syncCountdownTimer();
 
         const plan = data.plan_type ? data.plan_type.toUpperCase() : '—';
         const email = data.email ? ` · ${data.email}` : '';
@@ -237,6 +293,60 @@ class CodexUsageIndicator extends PanelMenu.Button {
     _showError(message) {
         this._errorItem.label.text = message;
         this._errorItem.show();
+    }
+
+    _needsCountdownTick() {
+        if (!this._usageWindows)
+            return false;
+
+        const {primary, secondary} = this._usageWindows;
+        const primaryRemaining = secondsUntilReset(primary?.reset_at);
+        const secondaryRemaining = secondsUntilReset(secondary?.reset_at);
+        return [primaryRemaining, secondaryRemaining].some(
+            remaining => remaining !== null && remaining < COUNTDOWN_THRESHOLD_SEC
+        );
+    }
+
+    _updateCountdownLabels() {
+        if (!this._usageWindows)
+            return;
+
+        const {primary, secondary} = this._usageWindows;
+        this._primaryBar.setResetLabel(
+            formatResetLabel(primary.reset_at, primary.reset_label)
+        );
+        this._secondaryBar.setResetLabel(
+            formatResetLabel(secondary.reset_at, secondary.reset_label)
+        );
+    }
+
+    _syncCountdownTimer() {
+        if (this._needsCountdownTick())
+            this._startCountdownTick();
+        else
+            this._stopCountdownTick();
+    }
+
+    _startCountdownTick() {
+        if (this._countdownTimeoutId)
+            return;
+
+        this._countdownTimeoutId = GLib.timeout_add_seconds(1, () => {
+            this._updateCountdownLabels();
+            if (!this._needsCountdownTick()) {
+                this._stopCountdownTick();
+                return GLib.SOURCE_REMOVE;
+            }
+            return GLib.SOURCE_CONTINUE;
+        });
+    }
+
+    _stopCountdownTick() {
+        if (!this._countdownTimeoutId)
+            return;
+
+        GLib.source_remove(this._countdownTimeoutId);
+        this._countdownTimeoutId = null;
     }
 
     _setAuthenticated(authenticated) {
@@ -258,6 +368,7 @@ class CodexUsageIndicator extends PanelMenu.Button {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = null;
         }
+        this._stopCountdownTick();
         super.destroy();
     }
 });

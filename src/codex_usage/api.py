@@ -61,13 +61,17 @@ def _format_reset(reset_after_seconds: int, reset_at: int) -> str:
     if reset_after_seconds <= 0:
         return "now"
     hours, remainder = divmod(reset_after_seconds, 3600)
-    minutes, _ = divmod(remainder, 60)
+    minutes, seconds = divmod(remainder, 60)
     if hours >= 24:
         days = hours // 24
         hours = hours % 24
         return f"in {days}d {hours}h"
     if hours > 0:
         return f"in {hours}h {minutes}m"
+    if reset_after_seconds < 300:
+        if minutes > 0:
+            return f"in {minutes} min {seconds} secs"
+        return f"in {seconds} secs"
     return f"in {minutes}m"
 
 

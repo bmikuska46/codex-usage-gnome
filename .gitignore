@@ -36,3 +36,4 @@ auth.json
 Thumbs.db
 .idea/
 .vscode/
+*.zip
